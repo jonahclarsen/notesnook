@@ -35,7 +35,6 @@ import TextAlign from "@tiptap/extension-text-align";
 import TextStyle from "@tiptap/extension-text-style";
 import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
-import ListKeymap from "@tiptap/extension-list-keymap";
 import { useEffect, useLayoutEffect, useMemo } from "react";
 import {
   Attachment,
@@ -100,14 +99,14 @@ interface TiptapStorage {
     attributes?: LinkAttributes
   ) => Promise<LinkAttributes | undefined>;
   getAttachmentData:
-    | ((
-        attachment: Pick<Attachment, "hash" | "type">
-      ) => Promise<string | undefined>)
-    | undefined;
+  | ((
+    attachment: Pick<Attachment, "hash" | "type">
+  ) => Promise<string | undefined>)
+  | undefined;
 }
 
 declare module "@tiptap/core" {
-  interface EditorStorage extends TiptapStorage {}
+  interface EditorStorage extends TiptapStorage { }
 }
 
 declare global {
@@ -272,7 +271,7 @@ const useTiptap = (
         FontFamily,
         BulletList.configure({ keepMarks: true, keepAttributes: true }),
         OrderedList.configure({ keepMarks: true, keepAttributes: true }),
-        TaskItemNode.configure({ nested: true }),
+        TaskItemNode.configure({ nested: false }),
         TaskListNode,
         Link.extend({
           inclusive: true
@@ -320,9 +319,7 @@ const useTiptap = (
         KeyMap,
         WebClipNode,
         CheckList,
-        CheckListItem.configure({
-          nested: true
-        }),
+        CheckListItem.configure({ nested: false }),
 
         Callout,
 
@@ -343,26 +340,6 @@ const useTiptap = (
           ]
         }),
 
-        ListKeymap.configure({
-          listTypes: [
-            {
-              itemName: ListItem.name,
-              wrapperNames: [BulletList.name, OrderedList.name]
-            },
-            {
-              itemName: TaskItemNode.name,
-              wrapperNames: [TaskListNode.name]
-            },
-            {
-              itemName: OutlineListItem.name,
-              wrapperNames: [OutlineList.name]
-            },
-            {
-              itemName: CheckListItem.name,
-              wrapperNames: [CheckList.name]
-            }
-          ]
-        }),
         FontLigature.configure({ enabled: enableFontLigatures }),
         SearchResult.configure()
       ],

@@ -16,7 +16,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-import { KeyboardShortcutCommand, mergeAttributes, Node } from "@tiptap/core";
+import { mergeAttributes, Node } from "@tiptap/core";
 import { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
 export interface CheckListItemOptions {
@@ -52,6 +52,10 @@ export const CheckListItem = Node.create<CheckListItemOptions>({
         renderHTML: (attributes) => ({
           class: attributes.checked ? "checked" : ""
         })
+      },
+      indent: {
+        default: 0,
+        parseHTML: (element) => parseInt(element.dataset.indent || "0", 10) || 0
       }
     };
   },
@@ -76,25 +80,62 @@ export const CheckListItem = Node.create<CheckListItemOptions>({
   },
 
   addKeyboardShortcuts() {
-    const shortcuts: {
-      [key: string]: KeyboardShortcutCommand;
-    } = {
-      Enter: () => this.editor.commands.splitListItem(this.name),
-      "Shift-Tab": () => this.editor.commands.liftListItem(this.name)
-    };
-
-    if (!this.options.nested) {
-      return shortcuts;
-    }
-
     return {
-      ...shortcuts,
-      Tab: () => this.editor.commands.sinkListItem(this.name)
+      Enter: () => this.editor.commands.splitListItem(this.name),
+      Tab: ({ editor }) => {
+        console.log("Tab pressed in CheckListItem");
+        const { state } = editor;
+        const { selection } = state;
+        const { $from } = selection;
+        let depth = $from.depth;
+        let checkItemPos = null;
+        while (depth > 0) {
+          const node = $from.node(depth);
+          if (node.type.name === this.name) {
+            checkItemPos = $from.before(depth);
+            break;
+          }
+          depth--;
+        }
+        if (checkItemPos === null) return false;
+        const checkItemNode = state.doc.nodeAt(checkItemPos);
+        if (!checkItemNode) return false;
+        const currentIndent = checkItemNode.attrs.indent || 0;
+        console.log("Current indent:", currentIndent);
+        const tr = state.tr.setNodeMarkup(checkItemPos, undefined, { indent: Math.min(16, currentIndent + 1) });
+        editor.view.dispatch(tr);
+        return true;
+      },
+      "Shift-Tab": ({ editor }) => {
+        console.log("Shift-Tab pressed in CheckListItem");
+        const { state } = editor;
+        const { selection } = state;
+        const { $from } = selection;
+        let depth = $from.depth;
+        let checkItemPos = null;
+        while (depth > 0) {
+          const node = $from.node(depth);
+          if (node.type.name === this.name) {
+            checkItemPos = $from.before(depth);
+            break;
+          }
+          depth--;
+        }
+        if (checkItemPos === null) return false;
+        const checkItemNode = state.doc.nodeAt(checkItemPos);
+        if (!checkItemNode) return false;
+        const currentIndent = checkItemNode.attrs.indent || 0;
+        console.log("Current indent:", currentIndent);
+        const tr = state.tr.setNodeMarkup(checkItemPos, undefined, { indent: Math.max(0, currentIndent - 1) });
+        editor.view.dispatch(tr);
+        return true;
+      }
     };
   },
 
   addNodeView() {
     return ({ node, getPos, editor }) => {
+      console.log('Creating CheckListItem view, indent:', node.attrs.indent);
       const listItem = document.createElement("li");
       const checkboxWrapper = document.createElement("label");
       const checkboxStyler = document.createElement("span");
@@ -110,39 +151,16 @@ export const CheckListItem = Node.create<CheckListItemOptions>({
         }
       });
 
-      checkbox.addEventListener("change", (event) => {
-        event.preventDefault();
-        // if the editor isn’t editable and we don't have a handler for
-        // readonly checks we have to undo the latest change
-        if (!editor.isEditable && !this.options.onReadOnlyChecked) {
-          checkbox.checked = !checkbox.checked;
-
-          return;
-        }
-
-        const { checked } = event.target as any;
-
-        if (editor.isEditable && typeof getPos === "function") {
-          editor
-            .chain()
-            .command(({ tr }) => {
-              const position = getPos();
-              const currentNode = tr.doc.nodeAt(position);
-
-              tr.setNodeMarkup(position, undefined, {
-                ...currentNode?.attrs,
-                checked
-              });
-
-              return true;
-            })
-            .run();
-        }
-        if (!editor.isEditable && this.options.onReadOnlyChecked) {
-          // Reset state if onReadOnlyChecked returns false
-          if (!this.options.onReadOnlyChecked(node, checked)) {
-            checkbox.checked = !checkbox.checked;
-          }
+      checkbox.addEventListener("change", (e) => {
+        if (typeof getPos === "function") {
+          const target = e.target as HTMLInputElement;
+          editor.commands.command(({ tr }) => {
+            const pos = getPos();
+            tr.setNodeMarkup(pos, undefined, {
+              checked: target.checked
+            });
+            return true;
+          });
         }
       });
 
@@ -152,6 +170,9 @@ export const CheckListItem = Node.create<CheckListItemOptions>({
 
       checkboxWrapper.append(checkbox, checkboxStyler);
       listItem.append(checkboxWrapper, content);
+
+      listItem.style.marginLeft = `${node.attrs.indent * 20}px`;
+      listItem.dataset.indent = node.attrs.indent.toString();
 
       return {
         dom: listItem,
@@ -167,6 +188,10 @@ export const CheckListItem = Node.create<CheckListItemOptions>({
           } else {
             checkbox.removeAttribute("checked");
           }
+
+          // Update indentation
+          listItem.style.marginLeft = `${updatedNode.attrs.indent * 20}px`;
+          listItem.dataset.indent = updatedNode.attrs.indent.toString();
 
           return true;
         }

@@ -24,6 +24,7 @@ import { createNodeView } from "../react/index.js";
 
 export type TaskItemAttributes = {
   checked: boolean;
+  indent: number;
 };
 
 export const TaskItemNode = TaskItem.extend({
@@ -37,6 +38,14 @@ export const TaskItemNode = TaskItem.extend({
         parseHTML: (element) => element.classList.contains("checked"),
         renderHTML: (attributes) => ({
           class: attributes.checked ? "checked" : ""
+        })
+      },
+      indent: {
+        default: 0,
+        parseHTML: (element) => parseInt(element.dataset.indent || "0", 10) || 0,
+        renderHTML: (attributes) => ({
+          "data-indent": attributes.indent,
+          style: `margin-left: ${attributes.indent * 20}px`
         })
       }
     };
@@ -63,7 +72,55 @@ export const TaskItemNode = TaskItem.extend({
 
   addKeyboardShortcuts() {
     return {
-      ...this.parent?.()
+      ...this.parent?.(),
+      Tab: ({ editor }) => {
+        console.log("Tab pressed in TaskItem");
+        const { state } = editor;
+        const { selection } = state;
+        const { $from } = selection;
+        let depth = $from.depth;
+        let taskItemPos = null;
+        while (depth > 0) {
+          const node = $from.node(depth);
+          if (node.type.name === this.name) {
+            taskItemPos = $from.before(depth);
+            break;
+          }
+          depth--;
+        }
+        if (taskItemPos === null) return false;
+        const taskItemNode = state.doc.nodeAt(taskItemPos);
+        if (!taskItemNode) return false;
+        const currentIndent = taskItemNode.attrs.indent || 0;
+        console.log("Current indent:", currentIndent);
+        const tr = state.tr.setNodeMarkup(taskItemPos, undefined, { indent: Math.min(16, currentIndent + 1) });
+        editor.view.dispatch(tr);
+        return true;
+      },
+      "Shift-Tab": ({ editor }) => {
+        console.log("Shift-Tab pressed in TaskItem");
+        const { state } = editor;
+        const { selection } = state;
+        const { $from } = selection;
+        let depth = $from.depth;
+        let taskItemPos = null;
+        while (depth > 0) {
+          const node = $from.node(depth);
+          if (node.type.name === this.name) {
+            taskItemPos = $from.before(depth);
+            break;
+          }
+          depth--;
+        }
+        if (taskItemPos === null) return false;
+        const taskItemNode = state.doc.nodeAt(taskItemPos);
+        if (!taskItemNode) return false;
+        const currentIndent = taskItemNode.attrs.indent || 0;
+        console.log("Current indent:", currentIndent);
+        const tr = state.tr.setNodeMarkup(taskItemPos, undefined, { indent: Math.max(0, currentIndent - 1) });
+        editor.view.dispatch(tr);
+        return true;
+      }
     };
   },
 
@@ -76,7 +133,7 @@ export const TaskItemNode = TaskItem.extend({
         return li;
       },
       shouldUpdate: ({ attrs: prev }, { attrs: next }) => {
-        return prev.checked !== next.checked;
+        return prev.checked !== next.checked || prev.indent !== next.indent;
       }
     });
   },

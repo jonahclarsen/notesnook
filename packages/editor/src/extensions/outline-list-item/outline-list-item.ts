@@ -17,11 +17,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import {
-  Node,
-  mergeAttributes,
-  findParentNodeClosestToPos
-} from "@tiptap/core";
+import { mergeAttributes, Node } from "@tiptap/core";
+import { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { findParentNodeOfTypeClosestToPos } from "../../utils/prosemirror.js";
 import { OutlineList } from "../outline-list/outline-list.js";
 
@@ -47,6 +44,10 @@ export const OutlineListItem = Node.create<ListItemOptions>({
         renderHTML: (attributes) => ({
           "data-collapsed": attributes.collapsed === true
         })
+      },
+      indent: {
+        default: 0,
+        parseHTML: (element) => parseInt(element.dataset.indent || "0", 10) || 0
       }
     };
   },
@@ -103,13 +104,60 @@ export const OutlineListItem = Node.create<ListItemOptions>({
 
         return this.editor.commands.splitListItem(this.name);
       },
-      Tab: () => this.editor.commands.sinkListItem(this.name),
-      "Shift-Tab": () => this.editor.commands.liftListItem(this.name)
+      Tab: ({ editor }) => {
+        console.log("Tab pressed in OutlineListItem");
+        const { state } = editor;
+        const { selection } = state;
+        const { $from } = selection;
+        let depth = $from.depth;
+        let outlineItemPos = null;
+        while (depth > 0) {
+          const node = $from.node(depth);
+          if (node.type.name === this.name) {
+            outlineItemPos = $from.before(depth);
+            break;
+          }
+          depth--;
+        }
+        if (outlineItemPos === null) return false;
+        const outlineItemNode = state.doc.nodeAt(outlineItemPos);
+        if (!outlineItemNode) return false;
+        const currentIndent = outlineItemNode.attrs.indent || 0;
+        console.log("Current indent:", currentIndent);
+        const tr = state.tr.setNodeMarkup(outlineItemPos, undefined, { indent: Math.min(16, currentIndent + 1) });
+        editor.view.dispatch(tr);
+        return true;
+      },
+      "Shift-Tab": ({ editor }) => {
+        console.log("Shift-Tab pressed in OutlineListItem");
+        const { state } = editor;
+        const { selection } = state;
+        const { $from } = selection;
+        let depth = $from.depth;
+        let outlineItemPos = null;
+        while (depth > 0) {
+          const node = $from.node(depth);
+          if (node.type.name === this.name) {
+            outlineItemPos = $from.before(depth);
+            break;
+          }
+          depth--;
+        }
+        if (outlineItemPos === null) return false;
+        const outlineItemNode = state.doc.nodeAt(outlineItemPos);
+        if (!outlineItemNode) return false;
+        const currentIndent = outlineItemNode.attrs.indent || 0;
+        console.log("Current indent:", currentIndent);
+        const tr = state.tr.setNodeMarkup(outlineItemPos, undefined, { indent: Math.max(0, currentIndent - 1) });
+        editor.view.dispatch(tr);
+        return true;
+      }
     };
   },
 
   addNodeView() {
     return ({ node, getPos, editor }) => {
+      console.log('Creating OutlineListItem view, indent:', node.attrs.indent);
       const isNested = node.lastChild?.type.name === OutlineList.name;
 
       const li = document.createElement("li");
@@ -120,57 +168,23 @@ export const OutlineListItem = Node.create<ListItemOptions>({
       if (isNested) li.classList.add("nested");
       else li.classList.remove("nested");
 
-      function onClick(e: MouseEvent | TouchEvent) {
-        if (e instanceof MouseEvent && e.button !== 0) return;
-        if (!(e.target instanceof HTMLParagraphElement)) return;
-        if (!li.classList.contains("nested")) return;
+      li.style.marginLeft = `${node.attrs.indent * 20}px`;
+      li.dataset.indent = node.attrs.indent.toString();
 
-        const pos = typeof getPos === "function" ? getPos() : 0;
-        if (typeof pos !== "number") return;
-        const resolvedPos = editor.state.doc.resolve(pos);
-
-        const { x, y, right } = li.getBoundingClientRect();
-
-        const clientX =
-          e instanceof MouseEvent ? e.clientX : e.touches[0].clientX;
-
-        const clientY =
-          e instanceof MouseEvent ? e.clientY : e.touches[0].clientY;
-
-        const hitArea = { width: 40, height: 40 };
-
-        const isRtl =
-          e.target.dir === "rtl" ||
-          findParentNodeClosestToPos(
-            resolvedPos,
-            (node) => !!node.attrs.textDirection
-          )?.node.attrs.textDirection === "rtl";
-
-        let xStart = clientX >= x - hitArea.width;
-        let xEnd = clientX <= x;
-        const yStart = clientY >= y;
-        const yEnd = clientY <= y + hitArea.height;
-
-        if (isRtl) {
-          xEnd = clientX <= right + hitArea.width;
-          xStart = clientX >= right;
+      li.addEventListener("click", (e: MouseEvent) => {
+        if (typeof getPos === "function") {
+          const target = e.target as HTMLElement;
+          if (target.classList.contains("toggle-collapse")) {
+            editor.commands.command(({ tr }) => {
+              const pos = getPos();
+              tr.setNodeMarkup(pos, undefined, {
+                collapsed: !node.attrs.collapsed
+              });
+              return true;
+            });
+          }
         }
-
-        if (xStart && xEnd && yStart && yEnd) {
-          e.preventDefault();
-          editor.commands.command(({ tr }) => {
-            tr.setNodeAttribute(
-              pos,
-              "collapsed",
-              !li.classList.contains("collapsed")
-            );
-            return true;
-          });
-        }
-      }
-
-      li.onmousedown = onClick;
-      li.ontouchstart = onClick;
+      });
 
       return {
         dom: li,
@@ -179,14 +193,16 @@ export const OutlineListItem = Node.create<ListItemOptions>({
           if (updatedNode.type !== this.type) {
             return false;
           }
-          const isNested =
-            updatedNode.lastChild?.type.name === OutlineList.name;
+          const isNested = updatedNode.lastChild?.type.name === OutlineList.name;
 
           if (updatedNode.attrs.collapsed) li.classList.add("collapsed");
           else li.classList.remove("collapsed");
 
           if (isNested) li.classList.add("nested");
           else li.classList.remove("nested");
+
+          li.style.marginLeft = `${updatedNode.attrs.indent * 20}px`;
+          li.dataset.indent = updatedNode.attrs.indent.toString();
 
           return true;
         }

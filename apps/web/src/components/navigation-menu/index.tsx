@@ -488,8 +488,8 @@ function RouteItem({
             item.path === "/trash"
               ? "trash"
               : item.path === "/favorites"
-              ? "favorites"
-              : undefined
+                ? "favorites"
+                : undefined
         });
       }}
       selected={
@@ -681,8 +681,8 @@ function ShortcutItem({
         item.type === "notebook"
           ? Notebook2
           : item.type === "tag"
-          ? Tag2
-          : Topic
+            ? Tag2
+            : Topic
       }
       selected={currentContext?.id === item.id}
       onDrop={(e) => handleDrop(e.dataTransfer, item)}
@@ -710,15 +710,15 @@ function ItemCount({ item }: { item: Route | Color | Notebook | Tag }) {
   useEffect(() => {
     (async function () {
       if ("type" in item) {
-        if (item.type === "color") return db.colors.count(item.id);
+        if (item.type === "color") return db.colors?.count?.(item.id) ?? 0;
         else if (item.type === "notebook" || item.type === "tag")
-          return db.relations.from(item, "note").count();
+          return db.relations?.from?.(item, "note")?.count?.() ?? 0;
       } else {
         switch (item.id) {
           case "notes":
             return notes?.length || 0;
           case "favorites":
-            return db.notes.favorites.count();
+            return db.notes?.favorites?.count?.() ?? 0;
           case "reminders":
             return reminders?.length || 0;
           case "trash":
@@ -726,7 +726,7 @@ function ItemCount({ item }: { item: Route | Color | Notebook | Tag }) {
           case "monographs":
             return monographs?.length || 0;
           case "archive":
-            return db.notes.archived.count();
+            return db.notes?.archived?.count?.() ?? 0;
           default:
             return 0;
         }

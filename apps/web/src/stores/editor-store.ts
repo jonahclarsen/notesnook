@@ -273,10 +273,10 @@ class EditorStore extends BaseStore<EditorStore> {
           const noteId = isDeleted(item)
             ? null
             : item.type === "note"
-            ? item.id
-            : item.type === "tiptap"
-            ? item.noteId
-            : null;
+              ? item.id
+              : item.type === "tiptap"
+                ? item.noteId
+                : null;
           if (noteId && session.note.id !== noteId) continue;
           if (isDeleted(item) || isTrashItem(item))
             clearIds.push(session.tabId);
@@ -688,7 +688,7 @@ class EditorStore extends BaseStore<EditorStore> {
     const tabId =
       // if a tab is pinned then always open a new tab.
       options.openInNewTab ||
-      (activeTab?.pinned && !oldTabForNote && !isReactivatingTab)
+        (activeTab?.pinned && !oldTabForNote && !isReactivatingTab)
         ? addTab(getId())
         : oldTabForNote?.id || activeTabId || addTab(getId());
 
@@ -722,8 +722,8 @@ class EditorStore extends BaseStore<EditorStore> {
     );
     const sessionId =
       activeSession?.needsHydration ||
-      activeSession?.type === "new" ||
-      noteAlreadyOpened
+        activeSession?.type === "new" ||
+        noteAlreadyOpened
         ? activeSession.id
         : tabSessionHistory.add(tabId, oldSessionOfNote?.id);
     const isLocked = await db.vaults.itemExists(note);
@@ -1035,7 +1035,7 @@ class EditorStore extends BaseStore<EditorStore> {
                   !!s.content?.conflicted &&
                   s.content.conflicted.id === currentSession.note.contentId &&
                   s.content.conflicted.dateEdited ===
-                    currentSession.note.dateEdited
+                  currentSession.note.dateEdited
               );
               if (!session || !session.content?.conflicted) return;
               session.content.conflicted.data = partial.content!.data;
@@ -1092,11 +1092,11 @@ class EditorStore extends BaseStore<EditorStore> {
         sessionId,
         content
           ? {
-              content: {
-                data: content,
-                type: "tiptap"
-              }
+            content: {
+              data: content,
+              type: "tiptap"
             }
+          }
           : {}
       );
     }
@@ -1326,9 +1326,9 @@ const useEditorStore = createPersistedStore(EditorStore, {
         note:
           "note" in session
             ? {
-                id: session.note.id,
-                title: session.note.title
-              }
+              id: session.note.id,
+              title: session.note.title
+            }
             : undefined
       } as EditorSession);
 
@@ -1366,10 +1366,11 @@ async function addNotebook(note: Note, context?: Context) {
 }
 
 async function addTag(note: Note, context?: Context) {
+  console.log('Running updated addTag function');
   const tagId =
     context && context.type === "tag"
       ? context.id
-      : db.settings.getDefaultTag();
+      : db.settings?.getDefaultTag?.() ?? null;
   if (!tagId) return;
 
   await db.relations.add(

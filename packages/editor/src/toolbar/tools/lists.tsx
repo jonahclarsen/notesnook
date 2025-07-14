@@ -189,31 +189,48 @@ export function CheckList(props: ToolProps) {
 export function Indent(props: ToolProps) {
   const { editor, ...toolProps } = props;
   const isBottom = useToolbarLocation() === "bottom";
-
   const listItemType = findListItemType(editor);
   if (!listItemType || !isBottom) return null;
-
   return (
     <ToolButton
       {...toolProps}
       toggled={false}
-      onClick={() => editor.chain().focus().sinkListItem(listItemType).run()}
+      onClick={() => {
+        editor.chain().focus().command(({ tr, state }) => {
+          const { from, to } = state.selection;
+          state.doc.nodesBetween(from, to, (node, pos) => {
+            if (node.type.name === listItemType) {
+              const currentIndent = node.attrs.indent || 0;
+              tr.setNodeMarkup(pos, undefined, { indent: Math.min(16, currentIndent + 1) });
+            }
+          });
+          return true;
+        }).run();
+      }}
     />
   );
 }
-
 export function Outdent(props: ToolProps) {
   const { editor, ...toolProps } = props;
   const isBottom = useToolbarLocation() === "bottom";
-
   const listItemType = findListItemType(editor);
   if (!listItemType || !isBottom) return null;
-
   return (
     <ToolButton
       {...toolProps}
       toggled={false}
-      onClick={() => editor.chain().focus().liftListItem(listItemType).run()}
+      onClick={() => {
+        editor.chain().focus().command(({ tr, state }) => {
+          const { from, to } = state.selection;
+          state.doc.nodesBetween(from, to, (node, pos) => {
+            if (node.type.name === listItemType) {
+              const currentIndent = node.attrs.indent || 0;
+              tr.setNodeMarkup(pos, undefined, { indent: Math.max(0, currentIndent - 1) });
+            }
+          });
+          return true;
+        }).run();
+      }}
     />
   );
 }

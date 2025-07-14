@@ -66,7 +66,8 @@ export function TaskItemComponent(
         flexDirection: "row",
         alignItems: "center",
         width: "100%",
-        justifyContent: "space-between"
+        justifyContent: "space-between",
+        marginLeft: `${node.attrs.indent * 20}px`
       }}
     >
       <Flex
@@ -114,8 +115,8 @@ export function TaskItemComponent(
             ":hover": isMobile
               ? undefined
               : {
-                  borderColor: "accent"
-                },
+                borderColor: "accent"
+              },
             fontFamily: "inherit",
             marginTop: "0.13rem"
           }}
